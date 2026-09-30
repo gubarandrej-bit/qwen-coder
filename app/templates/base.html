@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}DocCheck{% endblock %} — Система проверки документации</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="{% if not current_user.is_authenticated %}login-body{% endif %}">
+{% if current_user.is_authenticated %}
+<nav class="topbar">
+  <div class="brand"><span class="logo">⬡</span> DocCheck <small>анализ документации инженерных сетей</small></div>
+  <div class="nav-links">
+    <a href="{{ url_for('main.dashboard') }}" class="{{ 'active' if request.endpoint=='main.dashboard' }}">Панель</a>
+    <a href="{{ url_for('main.upload_page') }}" class="{{ 'active' if request.endpoint=='main.upload_page' }}">Загрузка файлов</a>
+    <a href="{{ url_for('main.ntd') }}" class="{{ 'active' if request.endpoint.startswith('main.ntd') }}">База НТД</a>
+    <a href="{{ url_for('main.models') }}" class="{{ 'active' if request.endpoint=='main.models' }}">Модели ИИ</a>
+    <a href="{{ url_for('main.history') }}" class="{{ 'active' if request.endpoint=='main.history' }}">Реестр проверок</a>
+    <a href="{{ url_for('main.chat_page') }}" class="{{ 'active' if request.endpoint=='main.chat_page' }}">Диалог</a>
+    {% if current_user.is_admin %}<a href="{{ url_for('auth.users') }}" class="{{ 'active' if request.endpoint=='auth.users' }}">Пользователи</a>{% endif %}
+  </div>
+  <div class="nav-user">
+    <span class="uname">{{ current_user.username }}{% if current_user.is_admin %} <em>(админ)</em>{% endif %}</span>
+    <a class="btn btn-sm" href="{{ url_for('auth.logout') }}">Выйти</a>
+  </div>
+</nav>
+{% endif %}
+<main class="container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}<div class="alert alert-{{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+
+<!-- плавающее диалоговое окно прогресса проверки -->
+<div id="progressDock" class="dock hidden">
+  <div class="dock-head">
+    <b>Ход проверки</b>
+    <span>
+      <button class="btn btn-sm" onclick="toggleDock()">Свернуть</button>
+      <button class="btn btn-sm btn-danger" onclick="closeDock()">Закрыть</button>
+    </span>
+  </div>
+  <div class="dock-bar"><div id="dockFill"></div></div>
+  <div id="dockLog" class="dock-log"></div>
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

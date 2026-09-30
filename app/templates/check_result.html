@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Проверка №{{ c.id }}{% endblock %}
+{% block content %}
+<div class="flex">
+  <h1 style="flex:1">Проверка №{{ c.id }} — {{ c.project_name }}</h1>
+  <a class="btn btn-primary" href="/api/check/{{ c.id }}/report.docx">⤓ Отчет DOC</a>
+  <a class="btn btn-primary" href="/api/check/{{ c.id }}/report.xlsx">⤓ Отчет XLS</a>
+  <a class="btn" href="/api/check/{{ c.id }}/bomis.xlsx">⤓ ВОР (xls)</a>
+  <a class="btn" href="/api/check/{{ c.id }}/spec.xlsx">⤓ Ведомость оборудования и материалов (xls)</a>
+  {% if current_user.is_admin or c.user_id==current_user.id %}
+  <button class="btn btn-danger" onclick="delCheck({{ c.id }})">Удалить проверку</button>{% endif %}
+</div>
+<p class="hint">Режим: {{ c.mode }} · Модели: {{ c.models_used or 'не выбраны' }} ·
+Статус: {{ c.status }} · Прогресс: {{ c.progress }}% ·
+Начало: {{ c.started_at.strftime('%d.%m.%Y %H:%M') if c.started_at }} ·
+Окончание: {{ c.finished_at.strftime('%d.%m.%Y %H:%M') if c.finished_at }}</p>
+
+<div class="progress-line mb"><div style="width:{{ c.progress }}%"></div></div>
+
+<div class="grid cols-2">
+  <div class="card stat"><div class="num" style="color:var(--crit)">{{ c.critical_count }}</div><div class="lbl">критических замечаний</div></div>
+  <div class="card stat"><div class="num" style="color:var(--warn)">{{ c.minor_count }}</div><div class="lbl">некритических замечаний</div></div>
+</div>
+
+<div class="card mt">
+  <h2>Перечень проверок</h2>
+  <table>
+    <tr><th>Код</th><th>Проверка</th><th>Результат</th></tr>
+    {% for ch in result.get('checks', []) %}
+    <tr>
+      <td><code>{{ ch.code }}</code></td><td>{{ ch.title }}</td>
+      <td>{% if ch.performed %}<span class="badge b-ok">выполнена</span>
+          {% else %}<span class="badge b-crit">НЕ ВЫПОЛНЕНА</span>
+          <div class="hint">Причина: {{ ch.reason }}</div>
+          {% if ch.data_needed %}<div class="hint"><b>Запрос данных:</b> {{ ch.data_needed | join('; ') }}</div>{% endif %}
+          {% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card mt">
+  <h2>Замечания</h2>
+  {% set crit = result.get('findings', []) | selectattr('severity','equalto','critical') | list %}
+  {% set minor = result.get('findings', []) | selectattr('severity','equalto','minor') | list %}
+  {% set info = result.get('findings', []) | selectattr('severity','equalto','info') | list %}
+  <h3><span class="badge b-crit">Критические ({{ crit|length }})</span></h3>
+  {% for f in crit %}
+  <div class="finding critical"><b>[{{ f.check }}]</b> {{ f.message }}
+    <div class="ntd">Основание: {{ f.ntd_ref }}</div></div>
+  {% else %}<p class="hint">Критических замечаний нет.</p>{% endfor %}
+
+  <h3><span class="badge b-minor">Некритические ({{ minor|length }})</span></h3>
+  {% for f in minor %}
+  <div class="finding minor"><b>[{{ f.check }}]</b> {{ f.message }}
+    <div class="ntd">Основание: {{ f.ntd_ref }}</div></div>
+  {% else %}<p class="hint">Некритических замечаний нет.</p>{% endfor %}
+
+  <h3><span class="badge b-info">Информация ({{ info|length }})</span></h3>
+  {% for f in info %}
+  <div class="finding info"><b>[{{ f.check }}]</b> {{ f.message }}</div>
+  {% else %}<p class="hint">Нет.</p>{% endfor %}
+</div>
+
+{% if result.get('data_needed') %}
+<div class="card mt">
+  <h2>Запрос недостающих исходных данных</h2>
+  <ul>{% for d in result['data_needed'] %}<li>{{ d }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<div class="card mt">
+  <h2>Выводы</h2>
+  <p style="white-space:pre-wrap">{{ c.report_summary or 'Выводы не сформированы (проверка не завершена).' }}</p>
+</div>
+
+<div class="card mt">
+  <h2>Журнал хода проверки (диалоговое окно)</h2>
+  <div class="dock-log" style="max-height:400px;background:#0e1520;border-radius:10px;border:1px solid var(--line)">
+    {% for l in log %}[{{ l.t }}] {{ l.msg }}
+    {% endfor %}</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function delCheck(id){
+  if(!confirm('Удалить проверку и её результаты?')) return;
+  const j=await apiPost('/api/check/'+id+'/delete');
+  if(j.ok) location.href='/history'; else alert(j.error);
+}
+{% if c.status=='running' %}pollCheckStatus({{ c.id }}, ()=>location.reload());{% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Панель{% endblock %}
+{% block content %}
+<h1>Панель управления</h1>
+
+<div class="grid cols-4 mb">
+  <div class="card stat"><div class="num">{{ stats.checks }}</div><div class="lbl">проверок в базе</div></div>
+  <div class="card stat"><div class="num">{{ stats.docs }}</div><div class="lbl">документов НТД</div></div>
+  <div class="card stat"><div class="num">{{ stats.files }}</div><div class="lbl">загруженных файлов</div></div>
+  <div class="card stat"><div class="num">{{ stats.models }}</div><div class="lbl">доступных моделей ИИ</div></div>
+</div>
+
+<div class="card">
+  <h2>Новая проверка документации</h2>
+  <form id="startForm" onsubmit="return startCheck(event)">
+    <div class="grid cols-2">
+      <div>
+        <label>Наименование проекта / раздела</label>
+        <input name="project" placeholder="напр. АПС корпус 3, рабочая документация">
+      </div>
+      <div>
+        <label>Режим работы системы</label>
+        <select id="selMode" name="mode" onchange="loadModels()">
+          <option value="local">Локальный (LLM на сервере)</option>
+          <option value="cloud">Облачный (бесплатные облачные модели)</option>
+          <option value="hybrid">Гибридный (локальные + облачные)</option>
+        </select>
+      </div>
+    </div>
+    <label>Модели ИИ для проверки</label>
+    <div id="modelList" class="flex mb" style="max-height:150px;overflow:auto"></div>
+    <label>Файлы для проверки (отмечены загруженные ранее; сначала загрузите их во вкладке «Загрузка файлов»)</label>
+    <div id="fileList" class="mb" style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px"></div>
+    <button class="btn btn-primary">▶ Запустить проверку</button>
+    <span class="hint" id="startMsg"></span>
+  </form>
+</div>
+
+<div class="card mt">
+  <h2>Последние проверки</h2>
+  {% if checks %}
+  <table>
+    <tr><th>ID</th><th>Проект</th><th>Режим</th><th>Статус</th><th>Крит.</th><th>Некрит.</th><th>Начало</th><th></th></tr>
+    {% for c in checks %}
+    <tr>
+      <td>{{ c.id }}</td><td>{{ c.project_name }}</td><td>{{ c.mode }}</td>
+      <td>{% if c.status=='done' %}<span class="badge b-ok">готово</span>
+          {% elif c.status=='running' %}<span class="badge b-info">выполняется</span>
+          {% else %}<span class="badge b-crit">{{ c.status }}</span>{% endif %}</td>
+      <td>{{ c.critical_count }}</td><td>{{ c.minor_count }}</td>
+      <td>{{ c.started_at.strftime('%d.%m.%Y %H:%M') if c.started_at }}</td>
+      <td><a class="btn btn-sm" href="{{ url_for('main.check_view', check_id=c.id) }}">Открыть</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="hint">Проверок ещё не выполнялось.</p>{% endif %}
+</div>
+
+<div class="card mt" style="max-width:520px">
+  <h2>Смена собственного пароля</h2>
+  <form id="pwdForm" onsubmit="changeOwnPwd(); return false;">
+    <label>Текущий пароль</label>
+    <input name="old_password" type="password" required>
+    <label>Новый пароль (не короче 6 символов)</label>
+    <input name="new_password" type="password" required minlength="6">
+    <button class="btn btn-primary">Сменить пароль</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let MODELS = [], FILES = [];
+async function loadAll(){
+  const rF = await fetch('/api/files').then(r=>r.json());
+  FILES = rF.files||[];
+  renderFiles();
+  loadModels();
+}
+async function loadModels(){
+  const mode = document.getElementById('selMode').value;
+  const r = await fetch('/api/models').then(x=>x.json());
+  MODELS = (r.models||[]).filter(m => m.enabled && (mode==='hybrid' ? true : m.provider===mode));
+  const el = document.getElementById('modelList');
+  if (!MODELS.length){ el.innerHTML = '<span class="hint">Нет включенных моделей для режима «'+mode+'». Добавьте модели в разделе «Модели ИИ». Проверка детерминированными методами всё равно будет выполнена, нейросетевой этап будет отмечен как НЕ ВЫПОЛНЕННЫЙ.</span>'; return; }
+  el.innerHTML = MODELS.map(m=>`<label style="margin:0;display:flex;gap:6px;align-items:center;background:#0e1520;border:1px solid var(--line);padding:6px 10px;border-radius:8px"><input type="checkbox" class="mchk" value="${m.id}" style="width:auto;margin:0" ${m.provider==='local'?'checked':''}> ${m.display_name||m.name} <span class="badge ${m.provider==='local'?'b-info':'b-warn'}">${m.provider}</span></label>`).join('');
+}
+function renderFiles(){
+  const el = document.getElementById('fileList');
+  if (!FILES.length){ el.innerHTML='<span class="hint">Файлы не загружены. Перейдите в «Загрузка файлов». Без исходных данных проверка проводиться не будет — ничего не выдумывается.</span>'; return; }
+  el.innerHTML = FILES.map(f=>`<label style="display:flex;gap:8px;align-items:center;margin:2px 0;font-weight:400">
+    <input type="checkbox" class="fchk" value="${f.id}" style="width:auto;margin:0">
+    ${f.name} <span class="badge ${f.has_text?'b-ok':'b-crit'}">${f.ext}${f.has_text?'':' нет текста'}</span>
+    ${f.system?`<span class="badge b-info">${f.system}</span>`:''}
+    ${f.doctype?`<span class="badge b-off">${f.doctype}</span>`:''}</label>`).join('');
+}
+async function startCheck(ev){
+  ev.preventDefault();
+  const files=[...document.querySelectorAll('.fchk:checked')].map(x=>+x.value);
+  const models=[...document.querySelectorAll('.mchk:checked')].map(x=>+x.value);
+  if(!files.length){ document.getElementById('startMsg').textContent='Не выбран ни один файл — проверку проводить не на чем.'; return false; }
+  const body={project:document.querySelector('[name=project]').value||'Без названия',
+              mode:document.getElementById('selMode').value, files, models};
+  const j=await apiPost('/api/check/start', body);
+  if(j.ok){ pollCheckStatus(j.check_id, (st)=>{ if(st.status==='done') location.href='/check/'+j.check_id; }); }
+  else document.getElementById('startMsg').textContent=j.error;
+  return false;
+}
+document.addEventListener('DOMContentLoaded', loadAll);
+
+async function changeOwnPwd(){
+  const f = document.getElementById('pwdForm');
+  const fd = new FormData(f);
+  const r = await fetch('{{ url_for("auth.change_own_password") }}', {method:'POST', body:fd, credentials:'same-origin'});
+  location.reload();
+}
+</script>
+{% endblock %}

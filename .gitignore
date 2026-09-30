@@ -1,0 +1,15 @@
+# Compiled/Binary files
+__pycache__/
+*.pyc
+*.so
+
+# Dependency directories
+venv/
+.venv/
+
+# System/Environment files
+.env
+.env.local
+
+# Other common ignores
+data/doccheck.db

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.code }} — пункты{% endblock %}
+{% block content %}
+<h1>{{ doc.code }}</h1>
+<p class="hint">{{ doc.title }}<br>Тип: {{ doc.doc_type }} · Статус: {{ doc.status }}
+  {% if doc.replaced_by %} · Заменён на: {{ doc.replaced_by }}{% endif %}<br>
+  Источник: <a href="{{ doc.official_source }}" target="_blank">{{ doc.official_source }}</a></p>
+
+<div class="card mb">
+  <h2>Опорные пункты (используются правилами проверки)</h2>
+  <table>
+    <tr><th>Пункт</th><th>Содержание</th><th>Тема</th></tr>
+    {% for cl in clauses %}
+    <tr><td><b>{{ cl.clause }}</b></td><td>{{ cl.text }}</td><td>{{ cl.topic }}</td></tr>
+    {% else %}
+    <tr><td colspan="3" class="hint">Пункты не внесены. Система ссылается только на документ в целом — точные номера пунктов не выдумываются.</td></tr>
+    {% endfor %}
+  </table>
+  {% if current_user.is_admin %}
+  <form class="mt" onsubmit="return addClause(event)">
+    <div class="grid cols-2">
+      <div><label>Номер пункта</label><input id="cNum" required placeholder="напр. 6.14.1"></div>
+      <div><label>Тема</label><input id="cTopic"></div>
+    </div>
+    <label>Текст/суть требования</label><textarea id="cText" rows="3" required></textarea>
+    <button class="btn btn-ok">Добавить пункт</button>
+  </form>
+  {% endif %}
+</div>
+<a class="btn" href="{{ url_for('main.ntd') }}">← К базе НТД</a>
+{% endblock %}
+{% block scripts %}
+<script>
+async function addClause(ev){
+  ev.preventDefault();
+  const j=await apiPost('/api/ntd/{{ doc.id }}/clause',
+        {clause:cNum.value, text:cText.value, topic:cTopic.value});
+  if(j.ok) location.reload(); else alert(j.error);
+  return false;
+}
+</script>
+{% endblock %}
