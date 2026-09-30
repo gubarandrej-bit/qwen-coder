@@ -147,9 +147,12 @@ def check_start():
 
 
 def _endpoints(app):
-    local = (app.config["LOCAL_LLM_BASE_URL"], app.config["LOCAL_LLM_API_KEY"])
-    cloud = (app.config["CLOUD_LLM_BASE_URL"], app.config["CLOUD_LLM_API_KEY"])
-    return local, cloud
+    """Эндпоинты в формате {provider: (base_url, api_key)} — единый вид для
+    llm_analyze и chat_answer."""
+    return {
+        "local": (app.config["LOCAL_LLM_BASE_URL"], app.config["LOCAL_LLM_API_KEY"]),
+        "cloud": (app.config["CLOUD_LLM_BASE_URL"], app.config["CLOUD_LLM_API_KEY"]),
+    }
 
 
 def _run_check(app, check_id, model_ids):
@@ -167,14 +170,14 @@ def _run_check(app, check_id, model_ids):
             checks_todo = [i.code for i in det_items]
             doc_ctx = build_doc_context(c.files)
             models = LlmModel.query.filter(LlmModel.id.in_(model_ids)).all()
-            local_ep, cloud_ep = _endpoints(app)
+            eps = _endpoints(app)
 
             _progress(c, 40)
             if models:
                 _log_append(c, f"Этап 2/4: нейросетевой анализ ({c.mode}), "
                                 f"моделей: {len(models)}…")
                 llm_res = llm_analyze(
-                    c.mode, local_ep, cloud_ep,
+                    c.mode, eps["local"], eps["cloud"],
                     [f"{m.provider}:{m.name}" for m in models],
                     ntd_docs, doc_ctx, checks_todo,
                     log_cb=lambda m: _log_append(c, m))
@@ -410,8 +413,7 @@ def chat_send():
                ChatMessage.query.filter_by(user_id=current_user.id)
                .order_by(ChatMessage.created_at.desc()).limit(6).all()][::-1]
     db.session.add(ChatMessage(user_id=current_user.id, role="user", text=question))
-    local_ep, cloud_ep = _endpoints(current_app)
-    answer = chat_answer(mode, {"local": local_ep, "cloud": cloud_ep},
+    answer = chat_answer(mode, _endpoints(current_app),
                          m.name if m else "", question, history)
     db.session.add(ChatMessage(user_id=current_user.id, role="assistant", text=answer))
     db.session.commit()

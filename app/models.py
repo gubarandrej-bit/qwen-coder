@@ -26,6 +26,11 @@ class User(UserMixin, db.Model):
 
     checks = db.relationship("Check", backref="user", lazy="dynamic")
 
+    @property
+    def is_active(self):
+        """Flask-Login: заблокированная учетная запись неактивна."""
+        return not self.is_blocked
+
     def set_password(self, raw):
         self.password_hash = generate_password_hash(raw)
 

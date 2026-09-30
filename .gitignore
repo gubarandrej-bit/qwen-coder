@@ -1,11 +1,15 @@
-# Python compiled files
+# Compiled and build artifacts
 __pycache__/
 *.pyc
 
-# Environment variables (keep .env.example tracked)
+# Environment files
 .env
 .env.local
 .env.*.local
 
+# Logs and temp files
+*.log
+*.tmp
+
 # Database files
-*.db
+data/*.db

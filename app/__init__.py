@@ -23,7 +23,13 @@ def create_app(config_class=Config):
 
     @login_manager.user_loader
     def load_user(uid):
-        return db.session.get(User, int(uid))
+        user = db.session.get(User, int(uid))
+        # заблокированный пользователь автоматически разлогинивается
+        if user is not None and user.is_blocked:
+            from flask_login import logout_user
+            logout_user()
+            return None
+        return user
 
     from app.routes.auth import bp as auth_bp
     from app.routes.main import bp as main_bp
