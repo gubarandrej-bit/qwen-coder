@@ -96,11 +96,14 @@ def user_password(uid):
     if not current_user.is_admin:
         return redirect(url_for("main.dashboard"))
     u = db.session.get(User, uid)
-    newpass = request.form.get("new_password") or ""
+    newpass = request.form.get("new_password") or request.form.get("password") or ""
+    confirm = request.form.get("password2") or newpass
     if not u:
         flash("Пользователь не найден.", "warning")
     elif len(newpass) < 6:
         flash("Пароль не короче 6 символов.", "danger")
+    elif newpass != confirm:
+        flash("Пароли не совпадают.", "danger")
     else:
         u.set_password(newpass)
         db.session.commit()

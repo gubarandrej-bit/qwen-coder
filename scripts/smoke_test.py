@@ -240,8 +240,10 @@ check("есть список замечаний", isinstance(findings, list))
 check("есть перечень непроверенных пунктов с причинами",
       all(x.get("reason") for x in not_checked) and len(not_checked) >= 1,
       str(not_checked)[:200])
-check("замечания классифицированы critical/minor",
-      all(f.get("severity") in ("critical", "minor") for f in findings))
+check("замечания классифицированы critical/minor/info",
+      all(f.get("severity") in ("critical", "minor", "info") for f in findings)
+      and any(f.get("severity") in ("critical", "minor") for f in findings),
+      str({f.get("severity") for f in findings}))
 check("детерминированные сверки выполнены (CJ_SPEC performed)",
       any(x["code"] == "CJ_SPEC" and x["performed"] for x in result.get("checks", [])),
       str([ (x['code'],x['performed']) for x in result.get('checks',[]) ])[:300])

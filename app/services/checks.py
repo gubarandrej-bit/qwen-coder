@@ -63,8 +63,13 @@ def to_num(v):
 
 
 def norm_name(s):
-    """Нормализация наименования для сверки (регистр, пробелы, ё->е)."""
+    """Нормализация наименования для сверки (регистр, пробелы, ё->е).
+
+    дополнительно удаляются служебные индексы исполнения в скобках:
+    'ВВГнг(А)-LS' и 'ВВГнг-LS' считаются одним и тем же кабелем.
+    """
     s = (s or "").lower().replace("ё", "е")
+    s = re.sub(r"\([^)]*\)", "", s)          # (А), (а), (В) — индексы горючести
     s = re.sub(r"[\s\-_/]+", "", s)
     return s
 
@@ -185,6 +190,31 @@ CHECK_CATALOG = [
 ]
 
 
+def _classify_by_doctype(files):
+    """Дополнительная классификация по явному типу документа (doctype), который
+    пользователь выбирает при загрузке. Позволяет корректно обрабатывать
+    ситуации, когда в одном файле несколько листов (КЖ + спецификация + нагрузки)
+    или название файла неинформативно."""
+    b = {"cable_journal": [], "specification": [], "plans": [], "schemes": [],
+         "calculations": [], "loads": [], "power": [], "battery": []}
+    keymap = {
+        "кабельный журнал": "cable_journal", "кж": "cable_journal",
+        "спецификация": "specification", "ведомость материалов": "specification",
+        "план": "plans", "трассы": "plans",
+        "схема": "schemes", "расчет": "calculations",
+        "нагрузки": "loads", "источник питания": "power", "акб": "battery",
+    }
+    for f in files:
+        d = norm_name(f.doctype or "")
+        if not d:
+            continue
+        for kw, bucket in keymap.items():
+            if norm_name(kw) in d:
+                b[bucket].append(f)
+                break
+    return b
+
+
 def run_deterministic_checks(files, ntd_docs):
     """Выполняет все возможные детерминированные проверки.
 
@@ -193,6 +223,10 @@ def run_deterministic_checks(files, ntd_docs):
     """
     items = {code: CheckItem(code, title) for code, title in CHECK_CATALOG}
     buckets = classify_tables(files)
+    # объединяем эвристическую классификацию с явным типом документа от пользователя
+    for k, v in _classify_by_doctype(files).items():
+        seen = {id(f) for f in buckets[k]}
+        buckets[k] = buckets[k] + [f for f in v if id(f) not in seen]
 
     # -------- CJ vs SPECIFICATION -----------------------------------------
     cj_items = _collect_cable_journal(buckets)
@@ -551,15 +585,24 @@ _CORE_RE = re.compile(r"(\d+)\s*x", re.I)
 
 def _parse_cable_cross_section(cab):
     """Возвращает (сечение_жилы_мм2, кол-во_жил, материал) или (None,...)."""
-    m = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:мм|mm)?\s*(?:2|²)?\s*[xх×]\s*(\d+(?:[.,]\d+)?)", cab.replace(" ", ""))
     cores, sec = 1, None
-    if m:
-        cores = int(float(m.group(1).replace(",", ".")))
-        sec = float(m.group(2).replace(",", "."))
+    # Формат "число x число x сечение" — экранированный/витой кабель
+    # (например КВВГЭнг-FRLS 1x2x0.78): жил 1 пара, сечение 0.78 мм2.
+    m3 = re.search(r"(\d+)\s*[xх×]\s*(\d+)\s*[xх×]\s*(\d+(?:[.,]\d+)?)",
+                   cab.replace(" ", ""))
+    if m3:
+        cores = int(m3.group(1)) * int(m3.group(2))
+        sec = float(m3.group(3).replace(",", "."))
     else:
-        m2 = re.search(r"[xх×](\d+(?:[.,]\d+)?)", cab.replace(" ", ""))
-        if m2:
-            sec = float(m2.group(1).replace(",", "."))
+        m = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:мм|mm)?\s*(?:2|²)?\s*[xх×]\s*(\d+(?:[.,]\d+)?)",
+                      cab.replace(" ", ""))
+        if m:
+            cores = int(float(m.group(1).replace(",", ".")))
+            sec = float(m.group(2).replace(",", "."))
+        else:
+            m2 = re.search(r"[xх×](\d+(?:[.,]\d+)?)", cab.replace(" ", ""))
+            if m2:
+                sec = float(m2.group(1).replace(",", "."))
     al = bool(re.search(r"(^|[^\w])(асбл|аввг|аvvg|apshv|аc|al)(_|$|\d)", cab.lower())) or cab.lower().startswith("а")
     return sec, cores, ("Al" if al else "Cu")
 

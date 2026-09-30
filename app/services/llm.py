@@ -170,8 +170,25 @@ def llm_analyze(mode, local_endpoint, cloud_endpoint, models, ntd_docs,
 
     used_any = False
     for i, (provider, model) in enumerate(targets):
-        base, key = (local_endpoint if provider == "local" else cloud_endpoint)
-        base_url, api_key = base
+        base = local_endpoint if provider == "local" else cloud_endpoint
+        if isinstance(base, dict):
+            base_url, api_key = base.get("url", ""), base.get("key", "")
+        elif len(base) >= 2:
+            base_url, api_key = base[0], base[1]
+        else:
+            base_url, api_key = base[0], ""
+        # у модели может быть собственный override эндпоинта/ключа (для облачных)
+        try:
+            from app.models import LlmModel
+            mrow = LlmModel.query.filter_by(name=model, provider="cloud").first()
+            if mrow is not None and mrow.base_url:
+                base_url = mrow.base_url
+                import os as _os
+                env_key = _os.environ.get(mrow.api_key_ref or "", "")
+                if env_key:
+                    api_key = env_key
+        except Exception:  # noqa: BLE001 — вне контекста приложения просто используем базовый эндпоинт
+            pass
         if not base_url:
             msg = f"Режим '{mode}': не задан {'локальный' if provider == 'local' else 'облачный'} эндпоинт LLM — проверка моделью '{model}' НЕ ПРОВЕДЕНА."
             log(msg)
