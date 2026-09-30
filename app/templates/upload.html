@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Загрузка файлов{% endblock %}
+{% block content %}
+<h1>Загрузка исходной документации</h1>
+<p class="hint mb">Поддерживаемые форматы: <code>xls / xlsx / docx / pdf / dwg (dxf) / csv</code>.
+Формат <b>doc</b> (Word 97-2003) и <b>dwg</b> требуют конвертации в docx/dxf — система честно сообщит,
+если содержимое файла не может быть извлечено, и соответствующие проверки будут помечены как невыполненные.</p>
+
+<div class="card mb">
+  <div class="grid cols-2">
+    <div><label>Инженерная система раздела</label>
+      <select id="selSystem">
+        <option value="">— не указан —</option>
+        <option>Электроснабжение (ЭС)</option><option>Электроосвещение (ЭО/ЭМ)</option>
+        <option>Пожарная сигнализация (АПС)</option><option>СОУЭ</option>
+        <option>Пожаротушение (АУПТ)</option><option>СКС</option><option>ЛВС</option>
+        <option>ВОЛС</option><option>Видеонаблюдение</option><option>СКУД</option>
+        <option>Охранная сигнализация</option><option>АСУ</option><option>АСУТП</option>
+      </select></div>
+    <div><label>Тип документа</label>
+      <select id="selDoctype">
+        <option value="">— не указан —</option>
+        <option>План трасс</option><option>Электрическая схема</option>
+        <option>Структурная схема</option><option>Кабельный журнал</option>
+        <option>Спецификация</option><option>Расчет нагрузок</option>
+        <option>Расчет источников питания</option><option>Расчет АКБ</option>
+        <option>Пояснительная записка</option><option>Иное</option>
+      </select></div>
+  </div>
+  <div id="dropzone" class="dropzone mt">
+    Перетащите файлы сюда или<br>
+    <input type="file" id="fileInput" multiple style="display:none"
+           accept=".xls,.xlsx,.doc,.docx,.pdf,.dwg,.dxf,.csv"
+           onchange="uploadFiles(this)">
+    <button class="btn btn-primary mt" onclick="document.getElementById('fileInput').click()">
+      Выбрать файлы</button>
+  </div>
+  <pre id="uploadStatus" class="hint mt" style="white-space:pre-wrap"></pre>
+</div>
+
+<div class="card">
+  <h2>Загруженные файлы</h2>
+  {% if files %}
+  <div class="table-wrap"><table>
+    <tr><th>ID</th><th>Файл</th><th>Формат</th><th>Система</th><th>Тип</th><th>Размер</th><th>Читаемость</th><th></th></tr>
+    {% for f in files %}
+    <tr>
+      <td>{{ f.id }}</td><td>{{ f.original_name }}</td><td>{{ f.ext }}</td>
+      <td>{{ f.system }}</td><td>{{ f.doctype }}</td>
+      <td>{{ '%.0f КБ' % (f.size/1024) }}</td>
+      <td>{% if f.text_cache and '@@TABLES_JSON@@' in f.text_cache %}<span class="badge b-ok">текст+таблицы</span>
+          {% elif f.text_cache %}<span class="badge b-info">текст</span>
+          {% else %}<span class="badge b-crit">не извлечено</span>{% endif %}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="delFile({{ f.id }})">Удалить</button></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}<p class="hint">Файлы ещё не загружены.</p>{% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function delFile(id){
+  if(!confirm('Удалить файл?')) return;
+  await apiPost('/api/files/'+id+'/delete');
+  location.reload();
+}
+</script>
+{% endblock %}

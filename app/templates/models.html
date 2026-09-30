@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Модели ИИ{% endblock %}
+{% block content %}
+<h1>Модели нейросетей</h1>
+<p class="hint mb">Режим работы: <b>{{ mode }}</b>. Локальный LLM-сервер: <code>{{ local_url or 'не настроен' }}</code>;
+облачный эндпоинт: <code>{{ cloud_url or 'не настроен' }}</code>. Настроить — в разделе «Настройки» внизу.</p>
+
+<div class="grid cols-2">
+  <div class="card">
+    <h2>Локальные модели (Ollama / llama.cpp)</h2>
+    <button class="btn btn-sm mb" onclick="syncLocal()">⟳ Получить список с локального сервера</button>
+    <span id="localMsg" class="hint"></span>
+    <table><tr><th>Модель</th><th>Контекст</th><th>Статус</th><th></th></tr>
+      {% for m in local %}
+      <tr><td>{{ m.display_name }}<br><code>{{ m.name }}</code></td><td>{{ m.context_tokens }}</td>
+        <td>{% if m.enabled %}<span class="badge b-ok">вкл</span>{% else %}<span class="badge b-off">выкл</span>{% endif %}</td>
+        <td class="right">
+          {% if current_user.is_admin %}
+          <button class="btn btn-sm" onclick="toggleModel({{ m.id }})">⏻</button>
+          <button class="btn btn-sm btn-danger" onclick="delModel({{ m.id }},false)">✕</button>{% endif %}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Облачные модели (бесплатные тарифы)</h2>
+    <p class="hint">OpenRouter free / Groq / Together и др. — OpenAI-совместимый API.
+    Ручное добавление/удаление на стороне провайдера выполняется через API (флаг «зарегистрировать/удалить через API»).</p>
+    <table><tr><th>Модель</th><th>Провайдер</th><th>Статус</th><th></th></tr>
+      {% for m in cloud %}
+      <tr><td>{{ m.display_name }}<br><code>{{ m.name }}</code></td><td>{{ m.provider }}</td>
+        <td>{% if m.enabled %}<span class="badge b-ok">вкл</span>{% else %}<span class="badge b-off">выкл</span>{% endif %}</td>
+        <td class="right">{% if current_user.is_admin %}
+          <button class="btn btn-sm" onclick="toggleModel({{ m.id }})">⏻</button>
+          <button class="btn btn-sm btn-danger" onclick="delModel({{ m.id }},true)">✕ (и через API)</button>
+          <button class="btn btn-sm" onclick="delModel({{ m.id }},false)">✕ (локально)</button>{% endif %}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+{% if current_user.is_admin %}
+<div class="card mt">
+  <h2>Добавить модель вручную</h2>
+  <form onsubmit="return addModel(event)">
+    <div class="grid cols-2">
+      <div><label>Имя модели (идентификатор API) *</label>
+        <input id="mName" required placeholder="напр. mistral:7b-instruct или meta-llama/llama-3.1-8b-instruct:free"></div>
+      <div><label>Отображаемое имя</label><input id="mDisp"></div>
+    </div>
+    <div class="grid cols-2">
+      <div><label>Провайдер</label>
+        <select id="mProv"><option value="local">local</option><option value="cloud">cloud</option></select></div>
+      <div><label>Контекст (токенов)</label><input id="mCtx" type="number" value="8192"></div>
+    </div>
+    <label>Base URL (для cloud, если отличается от общего)</label><input id="mUrl" placeholder="https://openrouter.ai/api/v1">
+    <label style="display:flex;gap:8px;align-items:center;font-weight:400">
+      <input type="checkbox" id="mReg" style="width:auto;margin:0"> Зарегистрировать/удалить на стороне облачного провайдера через его API</label>
+    <button class="btn btn-ok">Добавить модель</button>
+    <span id="addMsg" class="hint"></span>
+  </form>
+</div>
+
+<div class="card mt">
+  <h2>Настройки подключения к LLM</h2>
+  <div class="grid cols-2">
+    <div><label>Локальный base URL</label><input id="sLocalUrl" value="{{ local_url }}"></div>
+    <div><label>Локальный API key</label><input id="sLocalKey" placeholder="ollama"></div>
+    <div><label>Облачный base URL</label><input id="sCloudUrl" value="{{ cloud_url }}" placeholder="https://openrouter.ai/api/v1"></div>
+    <div><label>Облачный API key</label><input id="sCloudKey" type="password" placeholder="sk-or-v1-…"></div>
+    <div><label>Режим по умолчанию</label>
+      <select id="sMode"><option value="local">local</option><option value="cloud">cloud</option><option value="hybrid">hybrid</option></select></div>
+  </div>
+  <button class="btn btn-primary" onclick="saveSettings()">Сохранить настройки</button>
+  <span id="setMsg" class="hint"></span>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function syncLocal(){
+  const j = await fetch('/api/models/local/list').then(r=>r.json());
+  document.getElementById('localMsg').textContent =
+    j.models.length ? ('На сервере доступно: '+j.models.join(', ')) : (j.note||'пусто');
+}
+async function toggleModel(id){ await apiPost('/api/models/'+id+'/toggle'); location.reload(); }
+async function delModel(id, remote){
+  if(!confirm('Удалить модель?')) return;
+  const j = await apiDelete('/api/models/'+id+(remote?'?remote=1':''));
+  if(j.ok) location.reload(); else alert(j.error);
+}
+async function addModel(ev){
+  ev.preventDefault();
+  const body={name:mName.value, display_name:mDisp.value, provider:mProv.value,
+              context_tokens:+mCtx.value||8192, base_url:mUrl.value, register:mReg.checked};
+  const j=await apiPost('/api/models', body);
+  if(j.ok){ if(j.api_note) alert(j.api_note); location.reload(); }
+  else { document.getElementById('addMsg').textContent=j.error; }
+  return false;
+}
+async function saveSettings(){
+  const body={LOCAL_LLM_BASE_URL:sLocalUrl.value, LOCAL_LLM_API_KEY:sLocalKey.value,
+              CLOUD_LLM_BASE_URL:sCloudUrl.value, CLOUD_LLM_API_KEY:sCloudKey.value,
+              DEFAULT_MODE:sMode.value};
+  const j=await apiPost('/api/settings', body);
+  document.getElementById('setMsg').textContent=j.ok ? ('Сохранено. '+j.note) : j.error;
+}
+</script>
+{% endblock %}

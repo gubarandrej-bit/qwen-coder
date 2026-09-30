@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Пользователи{% endblock %}
+{% block content %}
+<h1>Управление пользователями</h1>
+
+<div class="grid cols-2">
+  <div class="card">
+    <h2>Добавить пользователя</h2>
+    <form method="post" action="{{ url_for('auth.user_add') }}">
+      <label>Логин</label>
+      <input name="username" required maxlength="64" placeholder="ivanov.i">
+      <label>ФИО</label>
+      <input name="full_name" placeholder="Иванов Иван Иванович">
+      <label>E-mail (необязательно)</label>
+      <input name="email" type="email">
+      <label>Пароль</label>
+      <input name="password" type="password" required minlength="6">
+      <label>Роль</label>
+      <select name="role">
+        <option value="user">Пользователь</option>
+        <option value="admin">Администратор</option>
+      </select>
+      <button class="btn btn-primary">Добавить</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Все пользователи ({{ users|length }})</h2>
+    <table>
+      <tr><th>Логин</th><th>ФИО</th><th>Роль</th><th>Статус</th><th>Действия</th></tr>
+      {% for u in users %}
+      <tr>
+        <td><b>{{ u.username }}</b></td>
+        <td>{{ u.full_name or '—' }}</td>
+        <td>{% if u.role=='admin' %}<span class="badge b-warn">админ</span>{% else %}<span class="badge b-info">пользователь</span>{% endif %}</td>
+        <td>{% if u.is_blocked %}<span class="badge b-crit">заблокирован</span>{% else %}<span class="badge b-ok">активен</span>{% endif %}</td>
+        <td>
+          <div class="flex" style="gap:6px">
+            <form method="post" action="{{ url_for('auth.user_password', uid=u.id) }}" class="flex" style="gap:4px;margin:0">
+              <input name="new_password" type="password" placeholder="новый пароль" required minlength="6" style="width:130px;margin:0">
+              <button class="btn btn-sm">Сменить пароль</button>
+            </form>
+            <form method="post" action="{{ url_for('auth.user_block', uid=u.id) }}" style="margin:0">
+              <button class="btn btn-sm {{ 'btn-ok' if u.is_blocked else 'btn-danger' }}">
+                {{ 'Разблокировать' if u.is_blocked else 'Блокировать' }}</button>
+            </form>
+            {% if u.username != current_user.username %}
+            <form method="post" action="{{ url_for('auth.user_delete', uid=u.id) }}" style="margin:0"
+                  onsubmit="return confirm('Удалить пользователя {{ u.username }}?')">
+              <button class="btn btn-sm btn-danger">Удалить</button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    <p class="hint mt">Смена собственного пароля: раздел «Панель» → «Сменить пароль».
+    Удаление и блокировка недоступны для собственной учетной записи.</p>
+  </div>
+</div>
+{% endblock %}

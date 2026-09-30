@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Вход{% endblock %}
+{% block content %}
+<div class="card login-card">
+  <h1>⬡ DocCheck</h1>
+  <p class="hint mb" style="text-align:center">Система анализа и проверки рабочей документации<br>по инженерным системам (ЭС, ЭО, АПС, СОУЭ, АУПТ, СКС, ЛВС, ВОЛС, ВКН, СКУД, ОС, АСУ, АСУТП)</p>
+  <form method="post">
+    <label>Логин</label>
+    <input name="username" autofocus required autocomplete="username">
+    <label>Пароль</label>
+    <input name="password" type="password" required autocomplete="current-password">
+    <label style="display:flex;align-items:center;gap:8px;font-weight:400">
+      <input type="checkbox" name="remember" style="width:auto;margin:0"> Запомнить меня
+    </label>
+    <button class="btn btn-primary mt" style="width:100%">Войти</button>
+  </form>
+</div>
+{% endblock %}

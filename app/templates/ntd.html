@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}База НТД{% endblock %}
+{% block content %}
+<h1>База нормативно-технических документов</h1>
+<p class="hint mb">Перед проверкой документации система автоматически контролирует актуальность документов
+по официальным источникам (docs.cntd.ru, protect.gost.ru, publication.pravo.gov.ru) — каждые сутки и по кнопке ниже.
+Если подтвердить актуальность не удалось, статус — «не проверен» (данные не выдумываются).</p>
+
+<div class="flex mb">
+  <button class="btn btn-primary" onclick="checkActuality(this)">⟳ Проверить актуальность всей базы</button>
+  <a class="btn" href="/api/ntd/export.xlsx">Выгрузить базу (xlsx)</a>
+  <span id="actMsg" class="hint"></span>
+</div>
+<pre id="actResult" class="hint" style="white-space:pre-wrap"></pre>
+
+{% if current_user.is_admin %}
+<div class="card mb">
+  <h2>Добавить документ</h2>
+  <form onsubmit="return addDoc(event)">
+    <div class="grid cols-2">
+      <div><label>Обозначение *</label><input id="dCode" placeholder="напр. СП 256.1325800.2016" required></div>
+      <div><label>Тип</label><select id="dType"><option>СП</option><option>ГОСТ</option><option>ГОСТ Р</option><option>ПУЭ</option><option>ФЗ</option><option>СНиП</option><option>иное</option></select></div>
+    </div>
+    <label>Наименование *</label><input id="dTitle" required>
+    <div class="grid cols-2">
+      <div><label>Год</label><input id="dYear" type="number"></div>
+      <div><label>Категория/область</label><input id="dCat" placeholder="АПС, кабели, оформление…"></div>
+    </div>
+    <label>Официальный источник (URL)</label><input id="dUrl">
+    <button class="btn btn-ok">Добавить</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap"><table>
+    <tr><th>Обозначение</th><th>Наименование</th><th>Тип</th><th>Статус</th><th>Заменён на</th><th>Проверен</th><th></th></tr>
+    {% for d in docs %}
+    <tr>
+      <td><b>{{ d.code }}</b></td>
+      <td>{{ d.title[:140] }}{% if d.title|length > 140 %}…{% endif %}
+          <div class="hint">{{ d.category }} · <a href="{{ url_for('main.ntd_clauses', doc_id=d.id) }}">пункты ({{ d.clauses.count() }})</a></div></td>
+      <td>{{ d.doc_type }}</td>
+      <td>{% if d.status=='действует' %}<span class="badge b-ok">действует</span>
+          {% elif d.status=='заменен' %}<span class="badge b-crit">заменен</span>
+          {% elif d.status=='утратил силу' %}<span class="badge b-crit">утратил силу</span>
+          {% else %}<span class="badge b-warn">не проверен</span>{% endif %}</td>
+      <td>{{ d.replaced_by }}</td>
+      <td>{{ d.checked_at.strftime('%d.%m.%Y') if d.checked_at else '—' }}</td>
+      <td>{% if current_user.is_admin %}
+          <button class="btn btn-sm btn-danger" onclick="delDoc({{ d.id }},'{{ d.code }}')">✕</button>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function checkActuality(btn){
+  btn.disabled = true; document.getElementById('actMsg').textContent='Идет проверка по официальным источникам…';
+  const j = await apiPost('/api/ntd/check-actuality');
+  btn.disabled=false;
+  if(j.ok){
+    document.getElementById('actMsg').textContent=`Подтверждено: ${j.updated}, не подтверждено (нет доступа/не найдено): ${j.unconfirmed}. Страница обновится.`;
+    setTimeout(()=>location.reload(), 2500);
+    document.getElementById('actResult').textContent =
+      j.results.map(r=>`${r.code}: ${r.status}${r.replaced_by?' → '+r.replaced_by:''} (${r.note})`).join('\n');
+  } else document.getElementById('actMsg').textContent=j.error;
+}
+async function addDoc(ev){
+  ev.preventDefault();
+  const body={code:dCode.value,title:dTitle.value,doc_type:dType.value,
+              year:+dYear.value||null,category:dCat.value,official_source:dUrl.value};
+  const j=await apiPost('/api/ntd', body);
+  if(j.ok) location.reload(); else alert(j.error);
+  return false;
+}
+async function delDoc(id,code){
+  if(!confirm(`Удалить документ ${code} из базы?`)) return;
+  const j=await apiDelete('/api/ntd/'+id);
+  if(j.ok) location.reload(); else alert(j.error);
+}
+</script>
+{% endblock %}
