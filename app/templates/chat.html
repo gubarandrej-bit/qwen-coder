@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Диалог{% endblock %}
+{% block content %}
+<h1>💬 Диалог с нейросетью</h1>
+<p class="muted">Ответы генерируются моделью, выбранной в разделе «Модели ИИ», в соответствии с режимом работы
+(локальный / облачный / гибридный). Соблюдаются правила: ничего не выдумывать, при нехватке данных —
+запрашивать недостающую информацию.</p>
+
+<div class="chat-box card chat">
+  <div id="chatLog" class="chat-log">
+    {% for m in messages %}
+      <div class="msg msg-{{ m.role }}">{{ m.text|e }}</div>
+    {% else %}
+      <div class="msg msg-assistant">Задайте вопрос по проектной/рабочей документации или нормативным документам.
+Если для ответа не хватает исходных данных, система сообщит об этом и запросит недостающие файлы.</div>
+    {% endfor %}
+  </div>
+  <form id="chatForm" class="chat-input">
+    <textarea id="chatText" rows="2" placeholder="Введите сообщение…" required></textarea>
+    <button class="btn btn-primary" type="submit">Отправить</button>
+  </form>
+  <div id="chatStatus" class="muted"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('chatForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const ta = document.getElementById('chatText');
+  const log = document.getElementById('chatLog');
+  const st = document.getElementById('chatStatus');
+  const text = ta.value.trim();
+  if (!text) return;
+  const div = document.createElement('div');
+  div.className = 'msg msg-user'; div.textContent = text;
+  log.appendChild(div); ta.value = '';
+  st.textContent = 'Модель думает…';
+  try {
+    const r = await fetch('/api/chat', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text: text})
+    });
+    const j = await r.json();
+    const a = document.createElement('div');
+    a.className = 'msg msg-assistant';
+    a.textContent = j.answer || ('Ошибка: ' + (j.error || r.status));
+    log.appendChild(a);
+  } catch (err) {
+    const a = document.createElement('div');
+    a.className = 'msg msg-assistant msg-error';
+    a.textContent = 'Ошибка соединения: ' + err;
+    log.appendChild(a);
+  }
+  st.textContent = '';
+  log.scrollTop = log.scrollHeight;
+});
+</script>
+{% endblock %}
