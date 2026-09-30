@@ -1,5 +1,11 @@
-(empty)node_modules/
-.next/
-dist/
-build/
-*.log
+# Python compiled files
+__pycache__/
+*.pyc
+
+# Environment variables (keep .env.example tracked)
+.env
+.env.local
+.env.*.local
+
+# Database files
+*.db

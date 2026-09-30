@@ -55,6 +55,17 @@
   </table>
   {% else %}<p class="hint">Проверок ещё не выполнялось.</p>{% endif %}
 </div>
+
+<div class="card mt" style="max-width:520px">
+  <h2>Смена собственного пароля</h2>
+  <form id="pwdForm" onsubmit="changeOwnPwd(); return false;">
+    <label>Текущий пароль</label>
+    <input name="old_password" type="password" required>
+    <label>Новый пароль (не короче 6 символов)</label>
+    <input name="new_password" type="password" required minlength="6">
+    <button class="btn btn-primary">Сменить пароль</button>
+  </form>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -96,5 +107,12 @@ async function startCheck(ev){
   return false;
 }
 document.addEventListener('DOMContentLoaded', loadAll);
+
+async function changeOwnPwd(){
+  const f = document.getElementById('pwdForm');
+  const fd = new FormData(f);
+  const r = await fetch('{{ url_for("auth.change_own_password") }}', {method:'POST', body:fd, credentials:'same-origin'});
+  location.reload();
+}
 </script>
 {% endblock %}

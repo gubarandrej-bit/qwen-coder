@@ -4,6 +4,14 @@ import os
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
+# Загрузка .env из корня проекта (если установлен python-dotenv либо файл есть) —
+# значения переменных окружения имеют приоритет над файлом .env.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(BASE_DIR, ".env"))
+except ImportError:
+    pass
+
 
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "change-me-in-production-please")

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Реестр проверок{% endblock %}
+{% block content %}
+<div class="flex">
+  <h1 style="flex:1">Реестр проверок</h1>
+  <a class="btn btn-primary" href="/api/history/export.xlsx">⤓ Выгрузить реестр (XLS)</a>
+</div>
+
+<div class="card">
+  {% if checks %}
+  <table>
+    <tr>
+      <th>ID</th><th>Проект</th><th>Пользователь</th><th>Режим</th><th>Модели ИИ</th>
+      <th>Статус</th><th>Готово</th><th>Крит.</th><th>Некрит.</th><th>Начало</th>
+      <th>Действия</th>
+    </tr>
+    {% for c in checks %}
+    <tr>
+      <td>{{ c.id }}</td>
+      <td>{{ c.project_name }}</td>
+      <td>{{ c.user.username if c.user else '—' }}</td>
+      <td>{{ {'local':'локальный','cloud':'облачный','hybrid':'гибридный'}.get(c.mode, c.mode) }}</td>
+      <td class="hint">{{ c.models_used or '—' }}</td>
+      <td>
+        {% if c.status=='done' %}<span class="badge b-ok">готово</span>
+        {% elif c.status=='running' %}<span class="badge b-info">выполняется {{ c.progress }}%</span>
+        {% elif c.status=='error' %}<span class="badge b-crit">ошибка</span>
+        {% else %}<span class="badge b-off">{{ c.status }}</span>{% endif %}
+      </td>
+      <td>{{ c.finished_at.strftime('%d.%m.%Y %H:%M') if c.finished_at else '—' }}</td>
+      <td style="color:var(--crit)">{{ c.critical_count }}</td>
+      <td style="color:var(--warn)">{{ c.minor_count }}</td>
+      <td>{{ c.started_at.strftime('%d.%m.%Y %H:%M') if c.started_at else '—' }}</td>
+      <td>
+        <div class="flex" style="gap:6px">
+          <a class="btn btn-sm" href="{{ url_for('main.check_view', check_id=c.id) }}">Открыть</a>
+          {% if c.status=='done' %}
+          <a class="btn btn-sm" href="/api/check/{{ c.id }}/report.docx" title="Отчет DOC">DOC</a>
+          <a class="btn btn-sm" href="/api/check/{{ c.id }}/report.xlsx" title="Отчет XLS">XLS</a>
+          <a class="btn btn-sm" href="/api/check/{{ c.id }}/bomis.xlsx" title="Ведомость объемов работ">ВОР</a>
+          <a class="btn btn-sm" href="/api/check/{{ c.id }}/spec.xlsx" title="Ведомость оборудования и материалов">БОиМ</a>
+          {% endif %}
+          {% if current_user.is_admin or c.user_id==current_user.id %}
+          <button class="btn btn-sm btn-danger" onclick="delCheck({{ c.id }})">Удалить</button>
+          {% endif %}
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="hint">Проверок в базе нет. Запустите первую проверку на панели управления.
+  Ни один результат не выдуман — показаны только фактически выполненные проверки.</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function delCheck(id){
+  if(!confirm('Удалить проверку №'+id+' и все её результаты?')) return;
+  const j = await apiPost('/api/check/'+id+'/delete');
+  if(j.ok) location.reload(); else alert(j.error || 'Не удалось удалить.');
+}
+</script>
+{% endblock %}

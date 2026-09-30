@@ -545,7 +545,7 @@ def _collect_loads(buckets):
     return loads
 
 
-_SEC_RE = re.compile(r"(?:x\s*)(\d+(?:[.,]\d+)?)\s*(?:(?:мм|mm)", re.I)
+_SEC_RE = re.compile(r"(?:x\s*)(\d+(?:[.,]\d+)?)\s*(?:мм|mm)?", re.I)
 _CORE_RE = re.compile(r"(\d+)\s*x", re.I)
 
 
