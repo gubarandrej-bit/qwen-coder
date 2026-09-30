@@ -1,17 +1,2 @@
-
-# Compiled and build artifacts
-# Database files
-# Environment files
-# Logs and temp files
-# Virtualenv and data
-*.log
-*.pyc
-*.tmp
-.env
-.env.*.local
-.env.local
-__pycache__/
-data/*.db
-data/uploads/
-tests_output/
-venv/
+# Common compressed files
+*.zip
