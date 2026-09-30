@@ -1,20 +1,17 @@
+
 # Compiled and build artifacts
-__pycache__/
-*.pyc
-
-# Environment files
-.env
-.env.local
-.env.*.local
-
-# Logs and temp files
-*.log
-*.tmp
-
 # Database files
-data/*.db
+# Environment files
+# Logs and temp files
 # Virtualenv and data
-venv/
-data/uploads/
-data/*.db
 *.log
+*.pyc
+*.tmp
+.env
+.env.*.local
+.env.local
+__pycache__/
+data/*.db
+data/uploads/
+tests_output/
+venv/
